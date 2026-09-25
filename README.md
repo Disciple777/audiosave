@@ -20,19 +20,27 @@ Built on Windows WASAPI loopback via [PyAudioWPatch](https://pypi.org/project/Py
 - Windows 10/11
 - Python 3.9+
 
-## Setup
+## Running it
+
+**Easiest: double-click `AudioSave.bat`.** It finds your Python, installs the
+dependencies the first time, and opens the app with no console window.
+
+**No Python at all? Build a standalone `AudioSave.exe`:** double-click
+`build_exe.bat` once, on a machine that does have Python and the dependencies.
+It produces `dist\AudioSave.exe` — a single ~52 MB file with Python and
+ffmpeg inside it — which runs on any Windows 10/11 PC, so you can just copy
+it over. Recordings are saved in a `recordings\` folder next to the .exe.
+
+**From source:**
 
 ```bash
 pip install -r requirements.txt
+python app.py
 ```
 
 > No system ffmpeg needed — a static ffmpeg binary is bundled via `imageio-ffmpeg` for high-quality mixing and MP3 encoding.
 
 ## Usage
-
-```bash
-python app.py
-```
 
 1. Pick your **speaker** (the "System audio" dropdown) and **microphone**
 
@@ -70,6 +78,15 @@ python diag.py
 ```
 
 Prints every speaker/mic/loopback device, runs a 3-second capture of both sources, mixes, and encodes an MP3 + WAV to verify the whole pipeline.
+
+To check a packaged build — devices, bundled ffmpeg, and a real
+3-second record + mix — without opening the window:
+
+```bash
+dist\AudioSave.exe --selftest
+```
+
+It prints a short report and also writes it to `audiosave-selftest.txt`.
 
 ## How it works
 

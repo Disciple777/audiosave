@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import sys
 import threading
 import time
 from datetime import datetime
@@ -28,7 +29,12 @@ from recorder import (
     wav_data_bytes,
 )
 
-APP_DIR = Path(__file__).resolve().parent
+# Frozen (PyInstaller) builds run from a temp folder that Windows deletes, so
+# anchor the recordings folder to the .exe itself rather than to this file.
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(sys.executable).resolve().parent
+else:
+    APP_DIR = Path(__file__).resolve().parent
 RECORDINGS_DIR = APP_DIR / "recordings"
 # In-progress capture files live here until the final MP3/WAV is written.
 # Anything left behind (crash, power cut, killed process) is recovered on the
@@ -982,5 +988,73 @@ class App(tk.Tk):
         self.destroy()
 
 
+def selftest() -> int:
+    """``AudioSave.exe --selftest`` - check that this build can see the audio
+    devices and the bundled ffmpeg, without opening the window. Prints a
+    report and also writes it to a file (path optional, 2nd argument)."""
+    from recorder import get_ffmpeg_exe
+
+    lines = [f"AudioSave selftest ({'frozen exe' if getattr(sys, 'frozen', False) else 'source'})",
+             f"recordings folder: {RECORDINGS_DIR}"]
+    ok = True
+    try:
+        engine = AudioEngine()
+        lines.append(f"speakers found: {len(engine.output_devices())}")
+        lines.append(f"microphones found: {len(engine.input_devices())}")
+        default = engine.default_output()
+        lines.append(f"default speaker: {default['name'] if default else None}")
+        ok = bool(engine.output_devices() or engine.input_devices())
+        engine.close()
+    except Exception as exc:  # noqa: BLE001
+        lines.append(f"AUDIO ERROR: {exc}")
+        ok = False
+    lines.append(f"bundled ffmpeg: {get_ffmpeg_exe()}")
+    lines.append(f"MP3 encoding available: {mp3_available()}")
+    ok = ok and mp3_available()
+    # Record 3 s and mix it, so a packaged build is proven end to end.
+    try:
+        import tempfile
+
+        engine = AudioEngine()
+        speaker = engine.default_output()
+        mics = engine.input_devices()
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            threads = []
+            if speaker:
+                threads.append(CaptureThread(tmp / "s.wav", "system", speaker, pa=engine.pa))
+            if mics:
+                threads.append(CaptureThread(tmp / "m.wav", "mic", mics[0], pa=engine.pa))
+            for t in threads:
+                t.start()
+            time.sleep(3)
+            for t in threads:
+                t.stop()
+            errs = [str(t.error) for t in threads if t.error]
+            created = mix_and_encode(
+                tmp / "s.wav" if (tmp / "s.wav").exists() else None,
+                tmp / "m.wav" if (tmp / "m.wav").exists() else None,
+                1.0, 1.0, tmp / "test", "mp3",
+            )
+            size = created[0].stat().st_size if created else 0
+            lines.append(f"3 s record + mix: {size} bytes" + (f" (warnings: {errs})" if errs else ""))
+            ok = ok and size > 0
+        engine.close()
+    except Exception as exc:  # noqa: BLE001
+        lines.append(f"RECORD/MIX ERROR: {exc}")
+        ok = False
+    lines.append("RESULT: " + ("OK" if ok else "PROBLEMS FOUND"))
+    report = "\n".join(lines)
+    out = Path(sys.argv[2]) if len(sys.argv) > 2 else Path.cwd() / "audiosave-selftest.txt"
+    try:
+        out.write_text(report + "\n", encoding="utf-8")
+    except OSError:
+        pass
+    print(report)
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
+    if "--selftest" in sys.argv[1:2]:
+        raise SystemExit(selftest())
     App().mainloop()

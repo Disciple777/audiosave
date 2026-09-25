@@ -4,3 +4,8 @@ recordings/
 # Python bytecode
 __pycache__/
 *.py[cod]
+
+# PyInstaller build output (dist/AudioSave.exe is ~52 MB - too big for GitHub)
+build/
+dist/
+*.spec
