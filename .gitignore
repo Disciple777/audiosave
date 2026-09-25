@@ -1,0 +1,6 @@
+# Your recordings stay on your machine (they're big - GitHub rejects >100 MB).
+recordings/
+
+# Python bytecode
+__pycache__/
+*.py[cod]

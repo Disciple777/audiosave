@@ -1,0 +1,4 @@
+pyaudiowpatch>=0.2.12
+numpy>=1.26
+imageio-ffmpeg>=0.5
+lameenc>=1.7
